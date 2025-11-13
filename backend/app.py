@@ -81,6 +81,8 @@ async def compare_documents(file1: UploadFile = File(...), file2: UploadFile = F
         )
 
         outputs = result["outputs"]
+        prepared_inputs = result["prepared_inputs"]
+
         response_payload = {
             "job_id": job_id,
             "matches": _serialize_matches(result["matches"]),
@@ -88,6 +90,8 @@ async def compare_documents(file1: UploadFile = File(...), file2: UploadFile = F
                 "highlighted_1": _encode_image(Path(outputs["highlighted_1"])),
                 "matched_1": _encode_image(Path(outputs["matched_1"])),
                 "matched_2": _encode_image(Path(outputs["matched_2"])),
+                "input_1": _encode_image(Path(prepared_inputs["img1"])),
+                "input_2": _encode_image(Path(prepared_inputs["img2"])),
             },
         }
 
