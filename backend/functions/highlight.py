@@ -78,7 +78,7 @@ def highlight_color_differences(img1, img2_aligned, diff_threshold=25, min_area=
 
     # Create overlay with color coding
     overlay = img2_aligned.copy()
-    overlay[mask_added > 0] = [0, 255, 0]      # Green → Additions
+    overlay[mask_added > 0] = [0, 100, 0]      # Green → Additions
     overlay[mask_removed > 0] = [0, 0, 255]    # Red → Deletions
     overlay[overlap > 0] = [0, 255, 255]       # Yellow → Replacements/Overlaps
 
