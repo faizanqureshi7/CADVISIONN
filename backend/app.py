@@ -7,10 +7,10 @@ from uuid import uuid4
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+import cv2
 
 from backend.functions.pipeline import process_documents, DEFAULT_DETECT_PARAMS, DEFAULT_CLIP_PARAMS
 from backend.functions.preprocess import load_image_any_format, optimize_image_for_processing
-import cv2
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -70,7 +70,7 @@ async def compare_documents(
     job_id = uuid4().hex
     print(f"🆔 Job ID: {job_id}")
 
-    # Use system temp directory instead of saving to disk
+    # Use system temp directory - automatically cleaned up after request
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         
@@ -95,7 +95,7 @@ async def compare_documents(
             img1 = load_image_any_format(str(input1_path), all_pages=False, page_num=0)
             img2 = load_image_any_format(str(input2_path), all_pages=False, page_num=0)
 
-            # Handle case where images might be lists (shouldn't happen with all_pages=False, but just in case)
+            # Handle case where images might be lists (safety check)
             if isinstance(img1, list):
                 print("⚠️ Image 1 returned as list, using first page")
                 img1 = img1[0]
@@ -109,7 +109,7 @@ async def compare_documents(
             print("⚙️ Optimizing Image 2...")
             img2_optimized, scale2 = optimize_image_for_processing(img2, max_size=1500, quality=90)
 
-            # Save optimized images
+            # Save optimized images to temp directory
             optimized1_path = temp_path / "optimized1.jpg"
             optimized2_path = temp_path / "optimized2.jpg"
             
@@ -137,6 +137,8 @@ async def compare_documents(
             # Read output images and encode to base64
             print("\n📤 Encoding output images...")
             outputs = result["outputs"]
+            prepared_inputs = result["prepared_inputs"]
+            
             response_payload = {
                 "job_id": job_id,
                 "matches": _serialize_matches(result["matches"]),
@@ -144,15 +146,20 @@ async def compare_documents(
                     "highlighted_1": _encode_image(Path(outputs["highlighted_1"])),
                     "matched_1": _encode_image(Path(outputs["matched_1"])),
                     "matched_2": _encode_image(Path(outputs["matched_2"])),
+                    "input_1": _encode_image(Path(prepared_inputs["img1"])),
+                    "input_2": _encode_image(Path(prepared_inputs["img2"])),
                 },
             }
 
             print("✅ Response prepared successfully")
+            print(f"📦 Response payload size: {len(str(response_payload))} bytes")
             print("="*80 + "\n")
             
             return response_payload
             
         except Exception as exc:
             print(f"\n❌ ERROR: {str(exc)}")
+            import traceback
+            print(traceback.format_exc())
             print("="*80 + "\n")
             raise HTTPException(status_code=500, detail=str(exc)) from exc
