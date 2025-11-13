@@ -2,34 +2,59 @@
 import cv2
 import numpy as np
 
-def highlight_color_differences(img1, img2_aligned, diff_threshold=25, min_area=15):
+def highlight_color_differences(img1, img2_aligned, diff_threshold=25, min_area=15, white_threshold=240):
     """
     Compare two images using color difference (Lab space).
     Shows additions (green), deletions (red), overlaps (yellow).
+    
+    FIXED: Ignores white background to prevent false positives.
 
     Inputs:
       img1, img2_aligned : BGR numpy arrays (same size)
+      diff_threshold: threshold for detecting differences
+      min_area: minimum area for connected components
+      white_threshold: grayscale value above which pixels are considered white (default 240)
     Returns:
       highlighted (BGR numpy array),
       mask_added (uint8 binary),
       mask_removed (uint8 binary),
       overlap (uint8 binary)
     """
+    # Convert to grayscale to detect white regions
+    gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    gray2 = cv2.cvtColor(img2_aligned, cv2.COLOR_BGR2GRAY)
+    
+    # Create masks for white/background regions (anything above white_threshold is considered background)
+    white_mask1 = (gray1 > white_threshold).astype(np.uint8) * 255
+    white_mask2 = (gray2 > white_threshold).astype(np.uint8) * 255
+    
+    # Convert to LAB color space for better color difference detection
     lab1 = cv2.cvtColor(img1, cv2.COLOR_BGR2LAB)
     lab2 = cv2.cvtColor(img2_aligned, cv2.COLOR_BGR2LAB)
 
-    diff_added = cv2.subtract(lab1, lab2)    # New in img2
-    diff_removed = cv2.subtract(lab2, lab1)  # Missing in img2
+    # Compute differences
+    diff_added = cv2.subtract(lab1, lab2)    # New in img1 (vs img2)
+    diff_removed = cv2.subtract(lab2, lab1)  # Missing in img1 (vs img2)
 
+    # Compute intensity of differences
     diff_added_intensity = np.linalg.norm(diff_added.astype(np.float32), axis=2)
     diff_removed_intensity = np.linalg.norm(diff_removed.astype(np.float32), axis=2)
 
+    # Normalize to 0-255
     diff_added_intensity = cv2.normalize(diff_added_intensity, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     diff_removed_intensity = cv2.normalize(diff_removed_intensity, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
 
+    # Threshold to create binary masks
     _, mask_added = cv2.threshold(diff_added_intensity, diff_threshold, 255, cv2.THRESH_BINARY)
     _, mask_removed = cv2.threshold(diff_removed_intensity, diff_threshold, 255, cv2.THRESH_BINARY)
 
+    # CRITICAL FIX: Remove white regions from the masks
+    # If img2 is white (background), don't count it as "added content"
+    # If img1 is white (background), don't count it as "removed content"
+    mask_added = cv2.bitwise_and(mask_added, cv2.bitwise_not(white_mask2))
+    mask_removed = cv2.bitwise_and(mask_removed, cv2.bitwise_not(white_mask1))
+
+    # Filter small noise areas
     def filter_small(mask, min_area):
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
         filtered = np.zeros_like(mask)
@@ -41,19 +66,23 @@ def highlight_color_differences(img1, img2_aligned, diff_threshold=25, min_area=
     mask_added = filter_small(mask_added, min_area)
     mask_removed = filter_small(mask_removed, min_area)
 
+    # Apply median blur and erosion for cleaner results
     mask_added = cv2.medianBlur(mask_added, 3)
     mask_removed = cv2.medianBlur(mask_removed, 3)
 
     mask_added = cv2.erode(mask_added, np.ones((2, 2), np.uint8), iterations=1)
     mask_removed = cv2.erode(mask_removed, np.ones((2, 2), np.uint8), iterations=1)
 
+    # Compute overlap (areas that show both addition and removal - legitimate changes)
     overlap = cv2.bitwise_and(mask_added, mask_removed)
 
+    # Create overlay with color coding
     overlay = img2_aligned.copy()
-    overlay[mask_added > 0] = [0, 255, 0 ]      # Green → Additions
+    overlay[mask_added > 0] = [0, 255, 0]      # Green → Additions
     overlay[mask_removed > 0] = [0, 0, 255]    # Red → Deletions
     overlay[overlap > 0] = [0, 255, 255]       # Yellow → Replacements/Overlaps
 
+    # Blend with original image
     highlighted = cv2.addWeighted(img2_aligned, 0.6, overlay, 0.4, 0)
 
     return highlighted, mask_added, mask_removed, overlap
@@ -129,5 +158,4 @@ def align_cad_images(
     aligned_img2 = cv2.warpAffine(img2, h, (width, height),
                                   borderMode=cv2.BORDER_CONSTANT, borderValue=(255,255,255))
 
-    # (visualize not used in pipeline by default)
     return aligned_img2, h
