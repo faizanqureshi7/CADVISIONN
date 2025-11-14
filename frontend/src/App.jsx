@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from 'react-markdown';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -81,26 +82,6 @@ function App() {
   );
   const input1Src = useMemo(() => toDataUrl(result?.images?.input_1), [result]);
   const input2Src = useMemo(() => toDataUrl(result?.images?.input_2), [result]);
-  const summaryMarkup = useMemo(() => {
-    const text = result?.ai_summary?.trim();
-    if (!text) {
-      return null;
-    }
-
-    const escapeHtml = (value) =>
-      value
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-
-    const bolded = escapeHtml(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    const bulletized = bolded.replace(/(^|\n)[*-]\s+/g, (match, newline) => {
-      const prefix = newline ? "<br />" : "";
-      return `${prefix}<span class="summary-bullet">•</span> `;
-    });
-    const html = bulletized.replace(/\n/g, "<br />");
-    return { __html: html };
-  }, [result]);
 
   const openModal = (src, alt) => {
     if (!src) {
@@ -289,40 +270,20 @@ function App() {
                     <h3>Revision Analysis</h3>
                   </div>
                 </div>
-                {summaryMarkup ? (
-                  <div className="summary-content" dangerouslySetInnerHTML={summaryMarkup} />
+                {result?.ai_summary ? (
+                  <div className="summary-content markdown-content">
+                    <ReactMarkdown>{result.ai_summary}</ReactMarkdown>
+                  </div>
                 ) : (
                   <p className="summary-placeholder">
                     AI summary will appear here after a successful comparison.
                   </p>
                 )}
               </div>
-
-              {/* <div className="matches">
-                <h3>Matched Components</h3>
-                {Object.entries(result.matches || {}).length === 0 ? (
-                  <p>No matches found.</p>
-                ) : (
-                  Object.entries(result.matches).map(([img1Index, matches]) => (
-                    <div key={img1Index} className="match-group">
-                      <strong>Image 1 component {img1Index}</strong>
-                      <ul>
-                        {matches.map((item) => (
-                          <li key={`${img1Index}-${item.img2_index}`}>
-                            Matches Image 2 component {item.img2_index} at{" "}
-                            {(item.similarity * 100).toFixed(1)}% similarity
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))
-                )}
-              </div> */}
             </section>
           )}
         </main>
       </div>
-
 
       {modalImage && (
         <div className="modal-backdrop" role="presentation" onClick={closeModal}>
