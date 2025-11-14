@@ -214,28 +214,7 @@ function App() {
                 </div>
               </div>
               <div className="images-grid">
-                {highlightSrc && (
-                  <figure className="image-card">
-                    <img src={highlightSrc} alt="Highlighted differences" />
-                    <figcaption>Highlighted Differences</figcaption>
-                    <div className="figure-actions">
-                      <button
-                        type="button"
-                        className="view-button"
-                        onClick={() => openModal(highlightSrc, "Highlighted differences")}
-                      >
-                        View
-                      </button>
-                      <a
-                        href={highlightSrc}
-                        download="highlighted_differences.png"
-                        className="download-link"
-                      >
-                        Download
-                      </a>
-                    </div>
-                  </figure>
-                )}
+                
                 {input1Src && (
                   <figure className="image-card">
                     <img src={input1Src} alt="Input drawing 1" />
@@ -273,6 +252,28 @@ function App() {
                       <a
                         href={input2Src}
                         download={file2?.name || "input_drawing_2.png"}
+                        className="download-link"
+                      >
+                        Download
+                      </a>
+                    </div>
+                  </figure>
+                )}
+                {highlightSrc && (
+                  <figure className="image-card">
+                    <img src={highlightSrc} alt="Highlighted differences" />
+                    <figcaption>Highlighted Differences</figcaption>
+                    <div className="figure-actions">
+                      <button
+                        type="button"
+                        className="view-button"
+                        onClick={() => openModal(highlightSrc, "Highlighted differences")}
+                      >
+                        View
+                      </button>
+                      <a
+                        href={highlightSrc}
+                        download="highlighted_differences.png"
                         className="download-link"
                       >
                         Download
