@@ -134,7 +134,7 @@ def highlight_color_differences(img1: np.ndarray,
 
         # Blend with original image
         try:
-            highlighted = cv2.addWeighted(img2_aligned, 0.6, overlay, 0.4, 0)
+            highlighted = cv2.addWeighted(img2_aligned, 0.3, overlay, 0.7, 0)
         except Exception as e:
             raise RuntimeError(f"Failed to blend overlay with image: {e}")
 

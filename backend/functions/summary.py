@@ -120,32 +120,26 @@ def generate_summary_with_gemini(composite_image: np.ndarray,
         except Exception as e:
             return f"❌ Failed to convert image for API: {e}"
 
-        prompt = ("""You are analyzing a CAD/technical drawing revision comparison. The image shows:\n"
-            "**Left**: Original drawing | **Middle**: Revised drawing | **Right**: Highlighted changes\n\n"
-            "Provide a concise summary with GROUPED changes:\n\n"
-            "## Structural/Geometric Changes\n"
-            "Group similar changes together. Each bullet point should be a complete sentence describing the change:\n"
-            "- **[Component Group/Area]:** Describe what changed and the impact in each components changed.\n\n"
-            "If no changes: 'No structural changes detected'\n\n"
-            "## Textual/Annotation Changes\n"
-            "Combine related text changes into meaningful groups:\n"
-            "- **Revision Block:** Describe all revision info changes in one sentence (e.g., 'Revision advanced from 002 to 006 with updated description M2019832→M2035096 and approval date 25AUG09').\n"
-            "- **Bill of Materials:** Summarize BOM changes (e.g., 'Removed C222 and C208 from "PARTS NOT INSTALL" list, indicating these components are now required').\n"
-            "- **Part Identification:** Note any part number or title changes (e.g., 'Added "WUKONG MAIN" identifier to title block for improved traceability').\n\n"
-            "If no changes in a category: 'None'\n\n"
-            "**CRITICAL RULES**:\n"
-            "✅ GROUP similar changes together (e.g., all repositioned components in one bullet)\n"
-            "✅ Each bullet point = 1-2 complete sentences (15-30 words)\n"
-            "✅ Explain WHY or WHAT IT MEANS when possible\n"
-            "✅ Maximum 5 bullet points per section\n"
-            "✅ Use technical but clear language\n"
-            "✅ Focus on IMPACT, not just listing items\n"
-            "❌ NO repetitive lists of individual components\n"
-            "❌ NO single-word descriptions\n"
-            "❌ NO more than 5 bullet points per section\n"
-            "❌ NO invented changes"
-                  """
-        )
+        prompt = ("""You are analyzing a CAD drawing revision comparison.
+**Left**: Original | **Middle**: Revised | **Right**: Highlighted changes
+Provide ONLY two sections with subsections:
+## Structural/Geometric Changes
+For each distinct change, create a subsection:
+                  
+### [Component/Area Name]
+Detailed description of what changed and why it matters.If no changes, write 'None detected.'
+## Textual/Annotation Changes
+For each category, create a subsection:
+                  
+### [Category Name]
+Detailed description of the text changes.If no changes, write 'None detected.'
+                  
+RULES:
+- Use ## for subsection headings
+- Each subsection = descriptive sentences with specific details
+- Include component IDs, measurements, and locations when visible
+- Do NOT invent details not visible in the images
+""")
 
         try:
             print("   🤖 Sending request to Gemini...")
