@@ -2,7 +2,7 @@ import base64
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from uuid import uuid4
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
@@ -12,6 +12,7 @@ import numpy as np
 
 from backend.functions.pipeline import process_documents, DEFAULT_DETECT_PARAMS, DEFAULT_CLIP_PARAMS
 from backend.functions.preprocess import load_image_any_format, optimize_image_for_processing
+from backend.functions.summary import create_summary_visualization, generate_summary_with_gemini
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -100,14 +101,14 @@ async def compare_documents(
     file2: UploadFile = File(...)
 ) -> Dict[str, Any]:
     """
-    Compare two CAD documents and return matched regions with highlighted differences.
+    Compare two CAD documents and return matched regions with highlighted differences and AI summary.
     
     Args:
         file1: First uploaded file (PDF or image)
         file2: Second uploaded file (PDF or image)
         
     Returns:
-        Dictionary containing job ID, matches, and base64-encoded images
+        Dictionary containing job ID, matches, base64-encoded images, and AI summary text
     """
     print("\n" + "="*80)
     print("🚀 New comparison request received")
@@ -248,8 +249,7 @@ async def compare_documents(
                 except Exception as e:
                     print(f"Warning: Failed to count matches: {e}")
 
-                # Read output images and encode to base64
-                print("\n📤 Encoding output images...")
+                # Get output paths
                 try:
                     outputs = result.get("outputs", {})
                     prepared_inputs = result.get("prepared_inputs", {})
@@ -258,6 +258,50 @@ async def compare_documents(
                         raise ValueError("Missing outputs or prepared_inputs in pipeline result")
                 except Exception as e:
                     raise RuntimeError(f"Failed to extract pipeline results: {e}")
+
+                # Generate AI summary using highlighted image from pipeline
+                print("\n🤖 Generating AI summary...")
+                ai_summary: Optional[str] = None
+                
+                try:
+                    # Load the highlighted image created by the pipeline
+                    print("   📂 Loading highlighted image from pipeline...")
+                    try:
+                        highlighted_path = Path(outputs["highlighted_1"])
+                        highlighted = cv2.imread(str(highlighted_path))
+                        if highlighted is None:
+                            raise ValueError(f"Could not read highlighted image: {highlighted_path}")
+                    except Exception as e:
+                        raise RuntimeError(f"Failed to load highlighted image: {e}")
+                    
+                    # Create composite visualization for Gemini using optimized images
+                    print("   📊 Creating visualization for AI analysis...")
+                    try:
+                        composite = create_summary_visualization(
+                            img1_optimized,  # Use optimized image 1
+                            img2_optimized,  # Use optimized image 2
+                            highlighted      # Use highlighted image from pipeline
+                        )
+                    except Exception as e:
+                        raise RuntimeError(f"Failed to create visualization: {e}")
+                    
+                    # Generate summary text only
+                    print("   💬 Generating summary text...")
+                    try:
+                        ai_summary = generate_summary_with_gemini(composite)
+                    except Exception as e:
+                        print(f"Warning: AI summary generation failed: {e}")
+                        ai_summary = f"⚠️ AI summary unavailable: {e}"
+                    
+                    print(f"   ✅ Summary generated ({len(ai_summary)} characters)")
+                    print(f" AI summary is {ai_summary}")
+                    
+                except Exception as e:
+                    print(f"Warning: Summary generation failed: {e}")
+                    ai_summary = f"❌ Summary generation failed: {e}"
+
+                # Read output images and encode to base64
+                print("\n📤 Encoding output images...")
                 
                 try:
                     response_payload = {
@@ -269,8 +313,15 @@ async def compare_documents(
                             "matched_2": _encode_image(Path(outputs["matched_2"])),
                             "input_1": _encode_image(Path(prepared_inputs["img1"])),
                             "input_2": _encode_image(Path(prepared_inputs["img2"])),
+                            "optimized_input_1": _encode_image(optimized1_path),  # Add optimized image 1
+                            "optimized_input_2": _encode_image(optimized2_path),  # Add optimized image 2
                         },
                     }
+                    
+                    # Add AI summary if available
+                    if ai_summary:
+                        response_payload["ai_summary"] = ai_summary
+                    
                 except KeyError as e:
                     raise RuntimeError(f"Missing required output file: {e}")
                 except Exception as e:
@@ -279,6 +330,8 @@ async def compare_documents(
                 try:
                     print("✅ Response prepared successfully")
                     print(f"📦 Response payload size: {len(str(response_payload))} bytes")
+                    if ai_summary:
+                        print(f"📝 AI summary: {len(ai_summary)} characters")
                     print("="*80 + "\n")
                 except Exception as e:
                     print(f"Warning: Failed to print response summary: {e}")

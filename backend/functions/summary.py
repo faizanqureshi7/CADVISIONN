@@ -110,7 +110,7 @@ def generate_summary_with_gemini(composite_image: np.ndarray,
 
         try:
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            model = genai.GenerativeModel('gemini-2.5-flash')
         except Exception as e:
             return f"❌ Failed to configure Gemini API: {e}"
 
@@ -123,13 +123,25 @@ def generate_summary_with_gemini(composite_image: np.ndarray,
         prompt = (
             "You are analyzing a CAD/technical drawing revision comparison. The image shows three views:\n\n"
             "**Left**: Original drawing\n"
-            "**Middle**: Revised drawing  \n"
+            "**Middle**: Revised drawing\n"
             "**Right**: Highlighted changes (Green=additions, Red=deletions, Yellow=modifications)\n\n"
-            "Provide a concise, engineering-focused summary (150-250 words) covering:\n\n"
-            "1. **Major Structural Changes**: Dimensions, shapes, component positions\n"
-            "2. **Text/Label Changes**: Dimension values, part numbers, annotations\n"
-            "3. **Color Analysis**:\n   - Red: Removed elements\n   - Green: Added elements\n   - Yellow: Modified/overlapping regions\n\n"
-            "Be specific and quantitative where possible. Focus on actionable engineering insights."
+            "Provide a concise analysis (150-200 words) in this exact structure:\n\n"
+            "**1. Color-Coded Changes:**\n"
+            "   - Describe ONLY visible colored regions in the RIGHT image:\n"
+            "     • **Red**: Deleted elements (if present)\n"
+            "     • **Green**: Added elements (if present)\n"
+            "     • **Yellow**: Modified/overlapping regions (if present)\n"
+            "   - If a color is absent, state: 'No [color] changes detected'\n"
+            "   - Be specific about locations and what changed (e.g., 'Red deletion in top-left corner shows removed mounting bracket')\n\n"
+            "**2. Textual Changes:**\n"
+            "   - Compare LEFT vs MIDDLE for text differences:\n"
+            "     • Dimension values, part numbers, revision numbers, dates, annotations\n"
+            "   - State 'No textual changes detected' if none are visible\n\n"
+            "**IMPORTANT**:\n"
+            "❌ Do NOT describe geometric changes unless marked with colors\n"
+            "❌ Do NOT invent changes - only describe what you see\n"
+            "✅ Focus on engineering-relevant details\n"
+            "✅ Be factual and concise"
         )
 
         try:
