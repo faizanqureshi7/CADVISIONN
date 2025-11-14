@@ -5,7 +5,7 @@ import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 import textwrap
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional
 
 
 def create_summary_visualization(img1: np.ndarray, 

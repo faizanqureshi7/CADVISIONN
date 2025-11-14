@@ -1,7 +1,7 @@
 # functions/highlight.py
 import cv2
 import numpy as np
-from typing import Tuple, Optional
+from typing import Tuple
 
 def highlight_color_differences(img1: np.ndarray, 
                                 img2_aligned: np.ndarray, 
