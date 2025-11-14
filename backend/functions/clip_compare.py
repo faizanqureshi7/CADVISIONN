@@ -6,8 +6,6 @@ import numpy as np
 from PIL import Image
 import torch
 import cv2
-import clip as _clip
-
 
 from backend.functions.highlight import align_cad_images, highlight_color_differences
 
@@ -39,6 +37,7 @@ def _load_clip_model(device: Optional[torch.device] = None) -> Tuple[object, obj
             embed_dim = model.text_projection.shape[1] if hasattr(model, 'text_projection') else model.proj.shape[1]
             return model, preprocess, embed_dim, device
         else:
+            import clip as _clip
             model, preprocess = _clip.load("ViT-B/32", device=device)
             model.to(device).eval()
             embed_dim = model.visual.output_dim if hasattr(model.visual, 'output_dim') else 512
