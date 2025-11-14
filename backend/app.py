@@ -1,6 +1,7 @@
 import base64
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from uuid import uuid4
@@ -84,6 +85,18 @@ def _serialize_matches(matches: Dict[int, Any]) -> Dict[str, Any]:
         raise
 
 
+def _format_time(seconds: float) -> str:
+    """Format time in human-readable format."""
+    if seconds < 1:
+        return f"{seconds*1000:.0f}ms"
+    elif seconds < 60:
+        return f"{seconds:.2f}s"
+    else:
+        mins = int(seconds // 60)
+        secs = seconds % 60
+        return f"{mins}m {secs:.2f}s"
+
+
 @app.get("/health")
 async def health() -> Dict[str, str]:
     """Health check endpoint."""
@@ -110,9 +123,15 @@ async def compare_documents(
     Returns:
         Dictionary containing job ID, matches, base64-encoded images, and AI summary text
     """
+    # Start total timer
+    start_time_total = time.time()
+    
     print("\n" + "="*80)
     print("🚀 New comparison request received")
     print("="*80)
+    
+    # Timer dictionary to track individual steps
+    timers = {}
     
     try:
         # Validate filenames
@@ -136,6 +155,7 @@ async def compare_documents(
             try:
                 # Save uploaded files temporarily
                 print("\n📥 Saving uploaded files...")
+                t_start = time.time()
                 try:
                     input1_path = temp_path / f"input1_{file1.filename}"
                     input2_path = temp_path / f"input2_{file2.filename}"
@@ -157,9 +177,12 @@ async def compare_documents(
                     print(f"✅ Saved: {input2_path.name}")
                 except Exception as e:
                     raise RuntimeError(f"Failed to save file 2 '{file2.filename}': {e}")
+                
+                timers['file_upload'] = time.time() - t_start
 
                 # Load and preprocess images
                 print("\n🔄 Loading and preprocessing images...")
+                t_start = time.time()
                 try:
                     img1 = load_image_any_format(str(input1_path), all_pages=False, page_num=0)
                 except Exception as e:
@@ -193,9 +216,12 @@ async def compare_documents(
                         raise ValueError("Image 2 is invalid or empty")
                 except Exception as e:
                     raise RuntimeError(f"Image validation failed: {e}")
+                
+                timers['image_loading'] = time.time() - t_start
 
                 # Optimize images
                 print("⚙️ Optimizing Image 1...")
+                t_start = time.time()
                 try:
                     img1_optimized, scale1 = optimize_image_for_processing(img1, max_size=1500, quality=90)
                 except Exception as e:
@@ -221,6 +247,8 @@ async def compare_documents(
                     print(f"💾 Saved optimized images to temp directory")
                 except Exception as e:
                     raise RuntimeError(f"Failed to save optimized images: {e}")
+                
+                timers['optimization'] = time.time() - t_start
 
                 # Create output directory in temp
                 try:
@@ -231,6 +259,7 @@ async def compare_documents(
 
                 # Process documents
                 print("\n🔍 Starting document comparison pipeline...")
+                t_start = time.time()
                 try:
                     result = process_documents(
                         input1_path=str(optimized1_path),
@@ -248,6 +277,8 @@ async def compare_documents(
                     print(f"🎯 Found {match_count} matched groups")
                 except Exception as e:
                     print(f"Warning: Failed to count matches: {e}")
+                
+                timers['pipeline'] = time.time() - t_start
 
                 # Get output paths
                 try:
@@ -261,6 +292,7 @@ async def compare_documents(
 
                 # Generate AI summary using highlighted image from pipeline
                 print("\n🤖 Generating AI summary...")
+                t_start = time.time()
                 ai_summary: Optional[str] = None
                 
                 try:
@@ -294,14 +326,16 @@ async def compare_documents(
                         ai_summary = f"⚠️ AI summary unavailable: {e}"
                     
                     print(f"   ✅ Summary generated ({len(ai_summary)} characters)")
-                    # print(f" AI summary is {ai_summary}")
                     
                 except Exception as e:
                     print(f"Warning: Summary generation failed: {e}")
                     ai_summary = f"❌ Summary generation failed: {e}"
+                
+                timers['ai_summary'] = time.time() - t_start
 
                 # Read output images and encode to base64
                 print("\n📤 Encoding output images...")
+                t_start = time.time()
                 
                 try:
                     response_payload = {
@@ -326,9 +360,28 @@ async def compare_documents(
                     raise RuntimeError(f"Missing required output file: {e}")
                 except Exception as e:
                     raise RuntimeError(f"Failed to create response payload: {e}")
+                
+                timers['encoding'] = time.time() - t_start
 
+                # Calculate total time
+                total_time = time.time() - start_time_total
+                
+                # Print timing summary
+                print("\n" + "="*80)
+                print("⏱️  PERFORMANCE SUMMARY")
+                print("="*80)
+                print(f"📥 File Upload:          {_format_time(timers.get('file_upload', 0))}")
+                print(f"🔄 Image Loading:        {_format_time(timers.get('image_loading', 0))}")
+                print(f"⚙️  Optimization:         {_format_time(timers.get('optimization', 0))}")
+                print(f"🔍 Pipeline (Detection): {_format_time(timers.get('pipeline', 0))}")
+                print(f"🤖 AI Summary:           {_format_time(timers.get('ai_summary', 0))}")
+                print(f"📤 Image Encoding:       {_format_time(timers.get('encoding', 0))}")
+                print("-" * 80)
+                print(f"⏱️  TOTAL INFERENCE TIME: {_format_time(total_time)}")
+                print("="*80)
+                
                 try:
-                    print("✅ Response prepared successfully")
+                    print(f"\n✅ Response prepared successfully")
                     print(f"📦 Response payload size: {len(str(response_payload))} bytes")
                     if ai_summary:
                         print(f"📝 AI summary: {len(ai_summary)} characters")
