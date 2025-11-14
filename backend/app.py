@@ -294,7 +294,7 @@ async def compare_documents(
                         ai_summary = f"⚠️ AI summary unavailable: {e}"
                     
                     print(f"   ✅ Summary generated ({len(ai_summary)} characters)")
-                    print(f" AI summary is {ai_summary}")
+                    # print(f" AI summary is {ai_summary}")
                     
                 except Exception as e:
                     print(f"Warning: Summary generation failed: {e}")
