@@ -18,15 +18,23 @@ function App() {
 
   useEffect(() => {
     if (!modalImage) {
+      document.body.style.overflow = "";
       return;
     }
+
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
         setModalImage(null);
       }
     };
+
+    document.body.style.overflow = "hidden";
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, [modalImage]);
 
   const handleFileChange = (event, setter) => {
@@ -109,6 +117,7 @@ function App() {
 
   const handleWheelZoom = (event) => {
     event.preventDefault();
+    event.stopPropagation();
     const direction = event.deltaY < 0 ? 0.1 : -0.1;
     adjustZoom(direction);
   };
