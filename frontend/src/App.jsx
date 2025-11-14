@@ -189,9 +189,25 @@ function App() {
 
           {result && (
             <section className="results">
-              <div className="results-header">
-                <h2>Comparison results</h2>
-                <p>Review the highlighted differences alongside the original inputs.</p>
+            <div className="results-header">
+              {(() => {
+                const aiText = result?.ai_summary || "";
+                const noChanges = /no change(s)?|no structural changes detected/i.test(aiText);
+                return (
+                  <h2>{noChanges ? "No changes" : "Comparison results"}</h2>
+                );
+              })()}
+              <p>
+                {(() => {
+                  const aiText = result?.ai_summary || "";
+                  const noChanges = /no change(s)?|no structural changes detected/i.test(aiText);
+                  return noChanges
+                    ? "No differences detected between the two revisions."
+                    : "Review the highlighted differences alongside the original inputs.";
+                })()}
+              </p>
+          
+              {!(/no change(s)?|no structural changes detected/i.test(result?.ai_summary || "")) && (
                 <div className="legend">
                   <span className="legend-item">
                     <span className="legend-swatch legend-add" />
@@ -202,7 +218,8 @@ function App() {
                     Deletions (red)
                   </span>
                 </div>
-              </div>
+              )}
+            </div>
               <div className="images-grid">
                 
                 {input1Src && (
