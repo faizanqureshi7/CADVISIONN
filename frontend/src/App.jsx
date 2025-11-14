@@ -78,6 +78,26 @@ function App() {
   );
   const input1Src = useMemo(() => toDataUrl(result?.images?.input_1), [result]);
   const input2Src = useMemo(() => toDataUrl(result?.images?.input_2), [result]);
+  const summaryMarkup = useMemo(() => {
+    const text = result?.ai_summary?.trim();
+    if (!text) {
+      return null;
+    }
+
+    const escapeHtml = (value) =>
+      value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+    const bolded = escapeHtml(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    const bulletized = bolded.replace(/(^|\n)[*-]\s+/g, (match, newline) => {
+      const prefix = newline ? "<br />" : "";
+      return `${prefix}<span class="summary-bullet">•</span> `;
+    });
+    const html = bulletized.replace(/\n/g, "<br />");
+    return { __html: html };
+  }, [result]);
 
   const openModal = (src, alt) => {
     if (!src) {
@@ -225,6 +245,21 @@ function App() {
                       </a>
                     </div>
                   </figure>
+                )}
+              </div>
+              <div className="summary-card">
+                <div className="summary-card-header">
+                  <div>
+                    <p className="summary-eyebrow">AI-Generated Summary</p>
+                    <h3>Revision Analysis</h3>
+                  </div>
+                </div>
+                {summaryMarkup ? (
+                  <div className="summary-content" dangerouslySetInnerHTML={summaryMarkup} />
+                ) : (
+                  <p className="summary-placeholder">
+                    AI summary will appear here after a successful comparison.
+                  </p>
                 )}
               </div>
 
