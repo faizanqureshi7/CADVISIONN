@@ -126,7 +126,7 @@ def highlight_color_differences(img1: np.ndarray,
         # Create overlay with color coding
         try:
             overlay = img2_aligned.copy()
-            overlay[mask_added > 0] = [0, 100, 0]      # Green → Additions
+            overlay[mask_added > 0] = [0, 255, 0]      # Green → Additions
             overlay[mask_removed > 0] = [0, 0, 255]    # Red → Deletions
             overlay[overlap > 0] = [0, 255, 255]       # Yellow → Replacements/Overlaps
         except Exception as e:
