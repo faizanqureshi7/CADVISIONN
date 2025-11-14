@@ -266,6 +266,41 @@ body {
   color: rgba(255, 255, 255, 0.68);
 }
 
+.legend {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+}
+
+.legend-add {
+  background: #00a86b;
+}
+
+.legend-del {
+  background: #e53935;
+}
+
 .images-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -475,16 +510,51 @@ footer {
 
 .modal-dialog img {
   width: 100%;
-  max-height: 70vh;
+                                                                                                                                                                                                                                              height: auto;
+  max-width: none;
   object-fit: contain;
   border-radius: var(--radius-sm);
   background: #0b1019;
+  transition: transform 0.12s ease;
 }
 
 .modal-caption {
   margin: 0;
   color: rgba(255, 255, 255, 0.76);
   text-align: center;
+}
+
+.modal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+}
+
+.modal-toolbar button {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.2rem 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modal-toolbar input[type="range"] {
+  flex: 1;
+}
+
+.modal-image-container {
+  width: 100%;
+  max-height: 70vh;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  background: #05070d;
+  padding: 0.5rem;
 }
 
 @media (max-width: 1024px) {

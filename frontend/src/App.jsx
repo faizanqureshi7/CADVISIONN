@@ -11,6 +11,9 @@ function App() {
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
   const [modalImage, setModalImage] = useState(null);
+  const [modalZoom, setModalZoom] = useState(1);
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
   useEffect(() => {
     if (!modalImage) {
@@ -104,9 +107,30 @@ function App() {
       return;
     }
     setModalImage({ src, alt });
+    setModalZoom(1);
   };
 
   const closeModal = () => setModalImage(null);
+
+  const adjustZoom = (delta) => {
+    setModalZoom((prev) => {
+      const next = clamp(parseFloat((prev + delta).toFixed(2)), 1, 4);
+      return next;
+    });
+  };
+
+  const handleZoomInput = (event) => {
+    const value = parseFloat(event.target.value);
+    if (!Number.isNaN(value)) {
+      setModalZoom(clamp(value, 1, 4));
+    }
+  };
+
+  const handleWheelZoom = (event) => {
+    event.preventDefault();
+    const direction = event.deltaY < 0 ? 0.1 : -0.1;
+    adjustZoom(direction);
+  };
 
   return (
     <div className="page">
@@ -178,6 +202,16 @@ function App() {
               <div className="results-header">
                 <h2>Comparison results</h2>
                 <p>Review the highlighted differences alongside the original inputs.</p>
+                <div className="legend">
+                  <span className="legend-item">
+                    <span className="legend-swatch legend-add" />
+                    Additions (green)
+                  </span>
+                  <span className="legend-item">
+                    <span className="legend-swatch legend-del" />
+                    Deletions (red)
+                  </span>
+                </div>
               </div>
               <div className="images-grid">
                 {highlightSrc && (
@@ -301,7 +335,34 @@ function App() {
             <button type="button" className="modal-close" onClick={closeModal}>
               Close
             </button>
-            <img src={modalImage.src} alt={modalImage.alt} />
+            <div className="modal-toolbar">
+              <button type="button" onClick={() => adjustZoom(-0.1)}>
+                −
+              </button>
+              <input
+                type="range"
+                min="1"
+                max="4"
+                step="0.1"
+                value={modalZoom}
+                onChange={handleZoomInput}
+                aria-label="Zoom level"
+              />
+              <span>{Math.round(modalZoom * 100)}%</span>
+              <button type="button" onClick={() => adjustZoom(0.1)}>
+                +
+              </button>
+              <button type="button" onClick={() => setModalZoom(1)}>
+                Reset
+              </button>
+            </div>
+            <div className="modal-image-container" onWheel={handleWheelZoom}>
+              <img
+                src={modalImage.src}
+                alt={modalImage.alt}
+                style={{ transform: `scale(${modalZoom})` }}
+              />
+            </div>
             <p className="modal-caption">{modalImage.alt}</p>
           </div>
         </div>
