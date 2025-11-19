@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import ReactMarkdown from 'react-markdown';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -122,6 +121,13 @@ function App() {
     adjustZoom(direction);
   };
 
+  // Check if summary is HTML or plain text
+  const isHtmlSummary = (text) => {
+    if (!text) return false;
+    const htmlPattern = /<\/?[a-z][\s\S]*>/i;
+    return htmlPattern.test(text);
+  };
+
   return (
     <div className="page">
       <header className="top-strip">
@@ -189,39 +195,38 @@ function App() {
 
           {result && (
             <section className="results">
-            <div className="results-header">
-              {(() => {
-                const aiText = result?.ai_summary || "";
-                const noChanges = /no change(s)?|no structural changes detected/i.test(aiText);
-                return (
-                  <h2>{noChanges ? "No changes" : "Comparison results"}</h2>
-                );
-              })()}
-              <p>
+              <div className="results-header">
                 {(() => {
                   const aiText = result?.ai_summary || "";
-                  const noChanges = /no change(s)?|no structural changes detected/i.test(aiText);
-                  return noChanges
-                    ? "No differences detected between the two revisions."
-                    : "Review the highlighted differences alongside the original inputs.";
+                  const noChanges = /no change(s)?|no (structural|visible|significant) changes detected|no differences found/i.test(aiText);
+                  return (
+                    <h2>{noChanges ? "No changes" : "Comparison results"}</h2>
+                  );
                 })()}
-              </p>
-          
-              {!(/no change(s)?|no structural changes detected/i.test(result?.ai_summary || "")) && (
-                <div className="legend">
-                  <span className="legend-item">
-                    <span className="legend-swatch legend-add" />
-                    Additions (green)
-                  </span>
-                  <span className="legend-item">
-                    <span className="legend-swatch legend-del" />
-                    Deletions (red)
-                  </span>
-                </div>
-              )}
-            </div>
+                <p>
+                  {(() => {
+                    const aiText = result?.ai_summary || "";
+                    const noChanges = /no change(s)?|no (structural|visible|significant) changes detected|no differences found/i.test(aiText);
+                    return noChanges
+                      ? "No differences detected between the two revisions."
+                      : "Review the highlighted differences alongside the original inputs.";
+                  })()}
+                </p>
+
+                {!(/no change(s)?|no (structural|visible|significant) changes detected|no differences found/i.test(result?.ai_summary || "")) && (
+                  <div className="legend">
+                    <span className="legend-item">
+                      <span className="legend-swatch legend-add" />
+                      Additions (green)
+                    </span>
+                    <span className="legend-item">
+                      <span className="legend-swatch legend-del" />
+                      Deletions (red)
+                    </span>
+                  </div>
+                )}
+              </div>
               <div className="images-grid">
-                
                 {input1Src && (
                   <figure className="image-card">
                     <img src={input1Src} alt="Input drawing 1" />
@@ -297,9 +302,10 @@ function App() {
                   </div>
                 </div>
                 {result?.ai_summary ? (
-                  <div className="summary-content markdown-content">
-                    <ReactMarkdown>{result.ai_summary}</ReactMarkdown>
-                  </div>
+                  <div 
+                    className="summary-content html-content"
+                    dangerouslySetInnerHTML={{ __html: result.ai_summary }}
+                  />
                 ) : (
                   <p className="summary-placeholder">
                     AI summary will appear here after a successful comparison.
