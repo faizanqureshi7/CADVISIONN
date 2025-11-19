@@ -174,13 +174,11 @@ def process_documents(
     input1_path: str,
     input2_path: str,
     output_dir: str,
-    detect_params: Optional[Dict[str, Any]] = None,
-    clip_params: Optional[Dict[str, Any]] = None,
-    output_paths: Optional[Dict[str, str]] = None,
-    dpi: int = 200,
+    detect_params: Optional[Dict] = None,
+    clip_params: Optional[Dict] = None,
 ) -> Dict[str, Any]:
     """
-    High-level orchestration for running detection + CLIP comparison.
+    Main pipeline function for document comparison.
 
     Args:
         input1_path: Path to first input document (PDF or image)
@@ -188,8 +186,6 @@ def process_documents(
         output_dir: Directory to save all outputs
         detect_params: Optional parameters for object detection
         clip_params: Optional parameters for CLIP comparison
-        output_paths: Optional custom output paths
-        dpi: DPI resolution for PDF conversion
 
     Returns:
         {
@@ -230,17 +226,14 @@ def process_documents(
 
         # Prepare inputs (convert PDFs if necessary)
         try:
-            prepared1 = prepare_input(input1, output_dir_path, dpi=dpi)
-            prepared2 = prepare_input(input2, output_dir_path, dpi=dpi)
+            prepared1 = prepare_input(input1, output_dir_path, dpi=200)
+            prepared2 = prepare_input(input2, output_dir_path, dpi=200)
         except Exception as e:
             raise RuntimeError(f"Failed to prepare inputs: {e}")
 
         # Resolve output paths
         try:
-            if output_paths:
-                resolved_output_paths = {key: Path(val) for key, val in output_paths.items()}
-            else:
-                resolved_output_paths = _default_output_paths(output_dir_path, input1, input2)
+            resolved_output_paths = _default_output_paths(output_dir_path, input1, input2)
         except Exception as e:
             raise RuntimeError(f"Failed to resolve output paths: {e}")
 
@@ -264,40 +257,59 @@ def process_documents(
         except Exception as e:
             raise RuntimeError(f"Detection failed on second input: {e}")
 
-        # Run CLIP comparison
+        # CLIP comparison and matching
         try:
-            matches = compare_and_annotate(
-                img1_path=str(prepared1),
-                img2_path=str(prepared2),
+            print("\n🔍 Running CLIP-based object matching...")
+            
+            # Unpack the tuple returned by compare_and_annotate
+            matches_result = compare_and_annotate(
+                img1_path=prepared1,
+                img2_path=prepared2,
                 boxes1=objects1,
                 boxes2=objects2,
-                output1_matched_path=str(matched1_path),
-                output2_matched_path=str(matched2_path),
-                output1_highlighted_path=str(highlighted1_path),
-                clip_threshold=clip_params.get("clip_threshold", DEFAULT_CLIP_PARAMS["clip_threshold"]),
-                min_area=detect_params.get("min_area", DEFAULT_DETECT_PARAMS["min_area"]),
+                output1_matched_path=matched1_path,
+                output2_matched_path=matched2_path,
+                output1_highlighted_path=highlighted1_path,
+                **clip_params
             )
+            
+            # Handle the return value (it might be a tuple now)
+            if isinstance(matches_result, tuple):
+                matches_dict, img1_for_metrics, img2_for_metrics = matches_result
+            else:
+                # Fallback if it returns just dict
+                matches_dict = matches_result
+                img1_for_metrics = None
+                img2_for_metrics = None
+                
+            print(f"✅ CLIP matching complete. Found {len(matches_dict)} matched groups.")
+            
         except Exception as e:
+            print(f"❌ Error during CLIP matching: {e}")
             raise RuntimeError(f"CLIP comparison failed: {e}")
 
-        # Build result dictionary
-        try:
-            return {
-                "matches": matches,
-                "outputs": {
-                    "detected_1": str(detected1_path),
-                    "detected_2": str(detected2_path),
-                    "matched_1": str(matched1_path),
-                    "matched_2": str(matched2_path),
-                    "highlighted_1": str(highlighted1_path),
-                },
-                "prepared_inputs": {
-                    "img1": str(prepared1),
-                    "img2": str(prepared2),
-                },
-            }
-        except Exception as e:
-            raise RuntimeError(f"Failed to build result dictionary: {e}")
+        # Prepare outputs
+        outputs = {
+            "matched_1": matched1_path,
+            "matched_2": matched2_path,
+            "highlighted_1": highlighted1_path,
+        }
+
+        prepared_inputs = {
+            "img1": prepared1,
+            "img2": prepared2,
+        }
+
+        # Return comprehensive result
+        return {
+            "outputs": outputs,
+            "prepared_inputs": prepared_inputs,
+            "matches": matches_dict,      # Now correctly a dict, not tuple
+            "objects1": objects1,
+            "objects2": objects2,
+            "img1_for_metrics": img1_for_metrics,  # For metrics calculation
+            "img2_for_metrics": img2_for_metrics,  # For metrics calculation
+        }
 
     except Exception as e:
         print(f"Critical error in process_documents: {e}")

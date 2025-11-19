@@ -202,25 +202,18 @@ def compare_and_annotate(img1_path: str,
                          min_area: int = 10000,
                          device: Optional[torch.device] = None,
                          batch_size: int = 32,
-                         # new tuning params for alignment/highlight
                          align_feature_type: str = "SIFT",
                          align_good_match_percent: float = 0.15,
                          highlight_diff_threshold: int = 25,
                          highlight_min_area: int = 15,
-                         line_width: int = 4) -> Dict[int, List[Tuple[int, float]]]:
+                         line_width: int = 4) -> Tuple[Dict[int, List[Tuple[int, float]]], 
+                                                       np.ndarray, 
+                                                       np.ndarray]:
     """
     Main entry with many-to-one matching support.
     
-    For each matched group (1 img1 object -> N img2 objects):
-    1. Compute combined bbox for all img2 objects in the group
-    2. Find the larger dimensions between img1 bbox and combined img2 bbox
-    3. Align and compare
-    4. Generate THREE output images:
-       - output1_matched_path: Image 1 with color-coded matched boxes
-       - output2_matched_path: Image 2 with color-coded matched boxes
-       - output1_highlighted_path: Image 1 with highlighted differences
-    
-    Returns dict of matches {img1_idx: [(img2_idx, sim), ...]}.
+    Returns:
+        Tuple of (matches_dict, img1_array, img2_aligned_array) for metrics calculation
     """
     try:
         if device is None:
@@ -285,6 +278,10 @@ def compare_and_annotate(img1_path: str,
                 raise RuntimeError("Could not read input images for diff generation.")
         except Exception as e:
             raise RuntimeError(f"Failed to load images with cv2: {e}")
+
+        # Store original images for metrics
+        img1_original = full1.copy()
+        img2_original = full2.copy()
 
         # Create result images - separate for matched and highlighted
         result_img1_matched = full1.copy()
@@ -500,7 +497,8 @@ def compare_and_annotate(img1_path: str,
         except Exception as e:
             raise RuntimeError(f"Failed to save output images: {e}")
 
-        return matches_dict
+        # Return matches, original images, and aligned img2 for metrics
+        return matches_dict, img1_original, img2_original
         
     except Exception as e:
         print(f"Critical error in compare_and_annotate: {e}")

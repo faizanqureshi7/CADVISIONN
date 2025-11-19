@@ -1,11 +1,12 @@
 import cv2
 import numpy as np
 from PIL import Image
-import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 import textwrap
 from typing import Dict, Any, Optional
+import base64
+from io import BytesIO
 
 
 def create_summary_visualization(img1: np.ndarray, 
@@ -85,17 +86,224 @@ def create_summary_visualization(img1: np.ndarray,
         raise
 
 
+def numpy_to_base64_data_url(img: np.ndarray, format: str = "PNG") -> str:
+    """
+    Convert numpy array to base64 data URL.
+    
+    Args:
+        img: Numpy array image (BGR format)
+        format: Image format (PNG, JPEG)
+        
+    Returns:
+        Base64 data URL string (e.g., "data:image/png;base64,...")
+    """
+    try:
+        # Convert BGR to RGB
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        # Convert to PIL Image
+        pil_image = Image.fromarray(img_rgb)
+        
+        # Save to bytes buffer
+        buffered = BytesIO()
+        pil_image.save(buffered, format=format)
+        
+        # Encode to base64
+        img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        
+        # Create data URL
+        mime_type = f"image/{format.lower()}"
+        data_url = f"data:{mime_type};base64,{img_base64}"
+        
+        return data_url
+        
+    except Exception as e:
+        print(f"Error converting image to base64: {e}")
+        raise
+
+
+def generate_summary_with_gpt5(img1: np.ndarray,
+                                img2: np.ndarray,
+                                api_key: Optional[str] = None) -> str:
+    """
+    Generate summary using OpenAI GPT-5 with exact same logic as provided code.
+    
+    Args:
+        img1: Original image (numpy array) - Image A
+        img2: Revised image (numpy array) - Image B
+        api_key: Optional OpenAI API key (loads from .env if not provided)
+        
+    Returns:
+        Generated HTML summary text or error message
+    """
+    try:
+        # Load API key
+        if api_key is None:
+            try:
+                load_dotenv()
+                api_key = os.getenv("OPENAI_API_KEY")
+            except Exception as e:
+                print(f"Warning: Failed to load .env file: {e}")
+
+        if not api_key:
+            return "⚠️ OPENAI_API_KEY not found in .env file. Please add:\nOPENAI_API_KEY=your_key_here"
+
+        # Import OpenAI
+        try:
+            from openai import OpenAI
+        except ImportError:
+            return "❌ OpenAI library not installed. Run: pip install openai"
+
+        # Initialize client
+        try:
+            client = OpenAI(api_key=api_key)
+        except Exception as e:
+            return f"❌ Failed to initialize OpenAI client: {e}"
+
+        if not client:
+            return "❌ OpenAI client not initialized - cannot perform comparison"
+
+        # Convert images to base64 data URLs
+        try:
+            print("   🔄 Converting images to base64 data URLs...")
+            data_url_a = numpy_to_base64_data_url(img1, format="PNG")
+            data_url_b = numpy_to_base64_data_url(img2, format="PNG")
+        except Exception as e:
+            return f"❌ Failed to convert images: {e}"
+
+        # Exact same prompt from your code
+        prompt_text = """You are a CAD image-diff assistant. 
+Compare Image A and Image B and summarize all geometric and annotation differences (including measurement and reading changes).
+Return the summary as an HTML fragment only (no markdown, no explanation, no extra text). 
+If there are no visible differences, return exactly: No differences found
+HTML requirements:
+- Return a single top-level container (e.g. <div> ... </div>).
+- Structure the output with bold category headings followed by indented bullet lists.
+- Provide a bullet list of changes using <ul><li>...</li></ul> when differences exist. Make the difference type bold.
+- For each change include short location, and values.
+- Keep the HTML minimal and valid."""
+
+        try:
+            print("   🤖 Starting GPT-5 image comparison...")
+            print("   📤 Sending request to GPT-5...")
+            
+            # Use responses.create with exact same structure
+            text_response = client.responses.create(
+                model="gpt-5-mini",
+                input=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": prompt_text},
+                            {"type": "input_image", "image_url": data_url_a},
+                            {"type": "input_image", "image_url": data_url_b},
+                        ],
+                    }
+                ],
+            )
+            
+        except AttributeError:
+            # Fallback to chat.completions if responses.create doesn't exist
+            print("   🔄 Fallback to chat.completions API...")
+            try:
+                text_response = client.chat.completions.create(
+                    model="gpt-4o",  # Use latest available model
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": prompt_text
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": data_url_a,
+                                        "detail": "high"
+                                    }
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": data_url_b,
+                                        "detail": "high"
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    max_tokens=2000,
+                    temperature=0.3
+                )
+                
+                # Extract summary from chat response
+                if text_response and text_response.choices:
+                    context = text_response.choices[0].message.content
+                    
+                    if not context:
+                        print("⚠️  No text summary found in GPT response")
+                        return "⚠️ GPT returned empty response"
+                    
+                    print("   ✅ Summary generated successfully")
+                    return context
+                else:
+                    return "⚠️ GPT returned empty response"
+                    
+            except Exception as e:
+                error_msg = str(e)
+                if "invalid_api_key" in error_msg.lower():
+                    return "❌ Invalid API key. Please check your OPENAI_API_KEY in .env"
+                elif "insufficient_quota" in error_msg.lower():
+                    return "❌ API quota exceeded. Please check your OpenAI account billing."
+                elif "rate_limit" in error_msg.lower():
+                    return "⚠️ Rate limit reached. Please wait a moment and try again."
+                else:
+                    return f"❌ GPT-5 comparison failed: {error_msg}"
+        
+        except Exception as e:
+            error_msg = str(e)
+            if "invalid_api_key" in error_msg.lower():
+                return "❌ Invalid API key. Please check your OPENAI_API_KEY in .env"
+            elif "insufficient_quota" in error_msg.lower():
+                return "❌ API quota exceeded. Please check your OpenAI account billing."
+            elif "rate_limit" in error_msg.lower():
+                return "⚠️ Rate limit reached. Please wait a moment and try again."
+            else:
+                return f"❌ GPT-5 comparison failed: {error_msg}"
+
+        # Extract text output - exact same logic
+        try:
+            summary = []
+            for item in text_response.output:
+                if item.type == "message":
+                    for content in item.content:
+                        if content.type == "output_text":
+                            summary.append(content.text)
+
+            context = "\n".join(summary)
+
+            if not context:
+                print("⚠️  No text summary found in GPT-5 response")
+                return "⚠️ GPT-5 returned empty response"
+                
+            print("   ✅ Summary generated successfully")
+            return context
+            
+        except Exception as e:
+            print(f"Warning: Failed to extract response: {e}")
+            return f"❌ Error extracting response: {e}"
+            
+    except Exception as e:
+        print(f"Critical error in generate_summary_with_gpt5: {e}")
+        return f"❌ Unexpected error: {e}"
+
+
 def generate_summary_with_gemini(composite_image: np.ndarray, 
                                  api_key: Optional[str] = None) -> str:
     """
     Generate summary using Gemini Vision API with better error handling.
-    
-    Args:
-        composite_image: Composite visualization image
-        api_key: Optional Gemini API key (loads from .env if not provided)
-        
-    Returns:
-        Generated summary text or error message
+    (Keep this as fallback)
     """
     try:
         if api_key is None:
@@ -109,8 +317,9 @@ def generate_summary_with_gemini(composite_image: np.ndarray,
             return "⚠️ GEMINI_API_KEY not found in .env file. Please add:\nGEMINI_API_KEY=your_key_here"
 
         try:
+            import google.generativeai as genai
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            model = genai.GenerativeModel('gemini-2.0-flash-exp')
         except Exception as e:
             return f"❌ Failed to configure Gemini API: {e}"
 
@@ -227,7 +436,8 @@ def analyze_change_types(highlighted: np.ndarray) -> Dict[str, float]:
 def generate_change_summary(img1: np.ndarray, 
                            aligned_img2: np.ndarray, 
                            highlighted: np.ndarray, 
-                           api_key: Optional[str] = None) -> Dict[str, Any]:
+                           api_key: Optional[str] = None,
+                           use_gpt5: bool = True) -> Dict[str, Any]:
     """
     Generate complete summary with error handling.
     
@@ -235,7 +445,8 @@ def generate_change_summary(img1: np.ndarray,
         img1: Original image
         aligned_img2: Aligned revised image
         highlighted: Highlighted changes image
-        api_key: Optional Gemini API key
+        api_key: Optional API key (OpenAI or Gemini)
+        use_gpt5: If True, use GPT-5; if False, use Gemini
         
     Returns:
         Dictionary containing AI summary, statistics, and composite image
@@ -255,7 +466,12 @@ def generate_change_summary(img1: np.ndarray,
 
         print("   🤖 Generating AI summary...")
         try:
-            ai_summary = generate_summary_with_gemini(composite, api_key)
+            if use_gpt5:
+                # Use GPT-5 with two separate images
+                ai_summary = generate_summary_with_gpt5(img1, aligned_img2, api_key)
+            else:
+                # Fallback to Gemini with composite
+                ai_summary = generate_summary_with_gemini(composite, api_key)
         except Exception as e:
             print(f"Warning: AI summary generation failed: {e}")
             ai_summary = f"❌ AI summary unavailable: {e}"
@@ -398,5 +614,4 @@ def create_summary_panel(summary_data: Dict[str, Any],
     except Exception as e:
         print(f"Critical error in create_summary_panel: {e}")
         raise
-
 
